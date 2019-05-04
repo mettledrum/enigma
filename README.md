@@ -1,5 +1,7 @@
 # enigma recreation in go
 
+https://www.cryptomuseum.com/crypto/enigma/wiring.htm#7
+
 ## rotor diagram (from Wikipedia)
 | Rotor # |  ABCDEFGHIJKLMNOPQRSTUVWXYZ |  Date Introduced |  Model Name & Number |
 |---------|-----------------------------|------------------|----------------------|

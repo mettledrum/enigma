@@ -2,185 +2,112 @@ package enigma
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"regexp"
 	"strings"
 )
 
 type Decoder struct {
-	r io.Reader
-	e enigma
+	eng enigma
+	r   io.Reader
 }
 
 type Encoder struct {
-	w io.Writer
-	e enigma
+	eng *enigma
+	w   io.Writer
 }
 
 type enigma struct {
-	rings     []ring
-	reflector reflector
 	plugboard map[string]string
-}
-
-type ring struct {
-	position int
-	rotor    rotor
-}
-
-type reflector struct {
-	wiring []string
-}
-
-type rotor struct {
-	wiring    []string
-	turnovers []int
+	reflector rotor
+	rotors    []rotor
 }
 
 const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
+// ShouldTurnover indicates if the rotor to the left should rotate
+func (r *rotor) ShouldTurnover() bool {
+	return r.turnovers[r.position]
+}
+
+// Rotate advances the rotor one position
+func (r *rotor) Rotate() {
+	r.position = (r.position + 1) % len(r.wiring)
+}
+
+// GetEncodedLetter gets the new letter passed through the rotor's wiring
+func (r *rotor) GetEncodedLetter(in string) string {
+	i := strings.Index(abc, in)
+	return r.wiring[i]
+}
+
+type rotor struct {
+	position  int
+	turnovers map[int]bool
+	wiring    []string
+}
+
 type Config struct {
-	RotorNames       []string
-	RingPositions    []int
-	PluboardPairings []string
+	PluboardWirings []string
+	Reflector       string
+	RotorPositions  map[string]int
 }
 
-func NewEnigmaIEncoder(r io.Reader, cfg Config) (*Encoder, error) {
-	e, err := newEnigmaI(cfg)
-	if err != nil {
-		return nil, err
+func (e *Encoder) EncodeString(userInput string) error {
+	if !regexp.MustCompile(`^[A-Z]*$`).MatchString(userInput) {
+		return errors.New("can only encode [A-Z] text")
 	}
 
-	return *Encoder{
-		r: r,
-		e: e,
-	}, nil
-}
-
-func newEnigmaI(cfg Config) (*Encoder, error) {
-	const numberOfRotors = 3
-	if len(cfg.RingPositions) != 3 || len(cfg.RotorNames) != 3 {
-		return nil, errors.New("enigma 1 only has 3 rotors")
-	}
-
-	// validate ring settings
-	if ringPos1 < 0 || ringPos1 > 25 {
-		return nil, errors.New("ring setting I must be [0,25]")
-	}
-	if ringPos2 < 0 || ringPos2 > 25 {
-		return nil, errors.New("ring setting II must be [0,25]")
-	}
-	if ringPos3 < 0 || ringPos3 > 25 {
-		return nil, errors.New("ring setting III must be [0,25]")
-	}
-
-	// validate plugboard wirings
-	isUppercaseAlphaPair := regexp.MustCompile(`^[A-Z][A-Z]$`).MatchString
-	for _, p := range plugboardPairs {
-		if !isUppercaseAlphaPair(p) || p[0] == p[1] {
-			return nil, fmt.Errorf("plugboard pair %s is invalid", p)
+	for _, letter := range userInput {
+		encoded := e.eng.Type(string(letter))
+		if _, err := e.w.Write([]byte(encoded)); err != nil {
+			return err
 		}
-		// TODO: also have to make sure that a plug isn't attempted more than once
-		// ie Q cannot be plugged into A and also into B
 	}
-
-	availableReflectors := map[string]reflector{
-		"A": {wiring: strings.Split("EJMZALYXVBWFCRQUONTSPIKHGD", "")},
-		"B": {wiring: strings.Split("YRUHQSLDPXNGOKMIEBFZCWVJAT", "")},
-		"C": {wiring: strings.Split("FVPJIAOYEDRZXWGCTKUQSBNMHL", "")},
-	}
-
-	availableRotors := map[string]rotor{
-		"I": rotor{
-			wiring:    strings.Split("EKMFLGDQVZNTOWYHXUSPAIBRCJ", ""),
-			turnovers: []int{strings.Index(abc, "Q")},
-		},
-		"II": rotor{
-			wiring:    strings.Split("AJDKSIRUXBLHWTMCQGZNPYFVOE", ""),
-			turnovers: []int{strings.Index(abc, "E")},
-		},
-		"III": rotor{
-			wiring:    strings.Split("BDFHJLCPRTXVZNYEIWGAKMUSQO", ""),
-			turnovers: []int{strings.Index(abc, "V")},
-		},
-		"IV": rotor{
-			wiring:    strings.Split("ESOVPZJAYQUIRHXLNFTGKDCMWB", ""),
-			turnovers: []int{strings.Index(abc, "J")},
-		},
-		"V": rotor{
-			wiring:    strings.Split("VZBRGITYUPSDNHLXAWMJQOFECK", ""),
-			turnovers: []int{strings.Index(abc, "Z")},
-		},
-		"VI": rotor{
-			wiring:    strings.Split("JPGVOUMFYQBENHZRDKASXLICTW", ""),
-			turnovers: []int{strings.Index(abc, "Z"), strings.Index(abc, "M")},
-		},
-		"VII": {
-			wiring:    strings.Split("NZJHGRCXMYSWBOUFAIVLPEKQDT", ""),
-			turnovers: []int{strings.Index(abc, "Z"), strings.Index(abc, "M")},
-		},
-		"VIII": {
-			wiring:    strings.Split("FKQHTLXOCBJSPDZRAMEWNIUYGV", ""),
-			turnovers: []int{strings.Index(abc, "Z"), strings.Index(abc, "M")},
-		},
-	}
-
-	// validate rotor names
-	rot1, ok := availableRotors[rotorName1]
-	if !ok {
-		return nil, fmt.Errorf("rotor name: %s not found for position 1", rotorName1)
-	}
-	rot2, ok := availableRotors[rotorName2]
-	if !ok {
-		return nil, fmt.Errorf("rotor name: %s not found for position 2", rotorName2)
-	}
-	rot3, ok := availableRotors[rotorName3]
-	if !ok {
-		return nil, fmt.Errorf("rotor name: %s not found for position 3", rotorName3)
-	}
-
-	// validate reflector name
-	ref, ok := availableReflectors[reflectorName]
-	if !ok {
-		return nil, fmt.Errorf("reflector name: %s not found", reflectorName)
-	}
-
-	var pb map[string]string
-	for _, pp := range plugboardPairs {
-		pb[string(pp[0])] = string(pp[1])
-		pb[string(pp[1])] = string(pp[0])
-	}
-
-	return &Enigma{
-		w: w,
-		r: r,
-		rings: []ring{
-			{rotor: rot1, position: ringPos1},
-			{rotor: rot2, position: ringPos2},
-			{rotor: rot3, position: ringPos3},
-		},
-		reflector: ref,
-		plugboard: pb,
-	}, nil
+	return nil
 }
 
-func (e *Encoder) Encode(in string) error {
-	if !regexp.MustCompile(`^[A-Z]*$`).MatchString(in) {
-		return errors.New("cannot encode non-alpha text")
+// TODO advance based on turnovers
+// plugboard -> rings -> reflector -> reverse rings -> plugboard
+func (en *enigma) Type(userInput string) string {
+	encoded := userInput
+
+	// plugboard
+	if p, ok := en.plugboard[encoded]; ok {
+		encoded = p
 	}
 
-	// plugboard -> rings -> reflector -> reverse rings -> plugboard
-	// for _, t := range text {
+	// rotors from right to left
+	for i := len(en.rotors) - 1; i >= 0; i-- {
+		encoded = en.rotors[i].GetEncodedLetter(encoded)
+	}
 
-	// 	// only run plugboard if it exists; some models don't have one
-	// 	// plugIn := e.plugboard[string(t)]
+	// reflector
+	encoded = en.reflector.GetEncodedLetter(encoded)
 
-	// 	for _, ring := range e.rings {
+	// rotors from left to right
+	for i := 0; i < len(en.rotors); i++ {
+		encoded = en.rotors[i].GetEncodedLetter(encoded)
+	}
 
-	// 	}
+	// final plugboard
+	if p, ok := en.plugboard[encoded]; ok {
+		encoded = p
+	}
 
-	// 	// plugOut := e.plugboard[t]
-	// }
-	return 0, nil
+	en.rotateRotors()
+
+	return encoded
+}
+
+// rotateRotors looks at the rotor turnover settings
+func (en *enigma) rotateRotors() {
+	// look at leftmost rotors to see if their neighbors to the right rotate them
+	for i := 0; i < len(en.rotors)-1; i++ {
+		if en.rotors[i+1].ShouldTurnover() {
+			en.rotors[i].Rotate()
+		}
+	}
+	// always rotate the rightmost rotor
+	en.rotors[len(en.rotors)-1].Rotate()
 }
