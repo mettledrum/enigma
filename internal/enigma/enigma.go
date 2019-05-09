@@ -2,6 +2,7 @@ package enigma
 
 import (
 	"errors"
+	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -23,7 +24,8 @@ type enigma struct {
 	rotors    []rotor
 }
 
-const abc = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
+// ABC is used for alphabetic indexing
+const ABC = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
 // ShouldTurnover indicates if the rotor to the left should rotate
 func (r *rotor) ShouldTurnover() bool {
@@ -32,13 +34,33 @@ func (r *rotor) ShouldTurnover() bool {
 
 // Rotate advances the rotor one position
 func (r *rotor) Rotate() {
-	r.position = (r.position + 1) % len(r.wiring)
+	r.position = (r.position + 1) % 26
 }
 
-// GetEncodedLetter gets the new letter passed through the rotor's wiring
-func (r *rotor) GetEncodedLetter(in string) string {
-	i := strings.Index(abc, in)
-	return r.wiring[i]
+func (r *rotor) GetEncodedLetterIn(idx int) int {
+	// add position to that index
+	idxWithPosition := (idx + r.position + 26) % 26
+
+	// look it up
+	letterThruWire := r.wiring[idxWithPosition]
+	idxThruWire := strings.Index(ABC, letterThruWire)
+
+	// remove positioning
+	out := (idxThruWire - r.position + 26) % 26
+	return out
+}
+
+func (r *rotor) GetEncodedLetterOut(idx int) int {
+	// add position to that index
+	idxWithPosition := (idx + r.position + 26) % 26
+
+	// look it up
+	letterThruWire := strings.Split(ABC, "")[idxWithPosition]
+	idxThruWire := strings.Index(strings.Join(r.wiring, ""), letterThruWire)
+
+	// remove position
+	out := (idxThruWire - r.position + 26) % 26
+	return out
 }
 
 type rotor struct {
@@ -47,12 +69,20 @@ type rotor struct {
 	wiring    []string
 }
 
+type RotorPosition struct {
+	Name     string
+	Position int
+}
+
+// Config is how any enigma impl. can be setup
 type Config struct {
 	PluboardWirings []string
 	Reflector       string
-	RotorPositions  map[string]int
+	RotorPositions  []RotorPosition
 }
 
+// EncodeString takes a [A-Z]* string and encodes it using the underlying enigma
+// and writes to the writer.
 func (e *Encoder) EncodeString(userInput string) error {
 	if !regexp.MustCompile(`^[A-Z]*$`).MatchString(userInput) {
 		return errors.New("can only encode [A-Z] text")
@@ -67,47 +97,70 @@ func (e *Encoder) EncodeString(userInput string) error {
 	return nil
 }
 
-// TODO advance based on turnovers
+// Type encodes the letter passed and rotates the rotors's positions
 // plugboard -> rings -> reflector -> reverse rings -> plugboard
-func (en *enigma) Type(userInput string) string {
-	encoded := userInput
+func (en *enigma) Type(userLetter string) string {
+	// rotate before encoding letter
+	en.rotateRotors()
 
-	// plugboard
+	fmt.Printf("user in:\t%s\n", userLetter)
+	encoded := userLetter
+
+	// plugboard in
 	if p, ok := en.plugboard[encoded]; ok {
 		encoded = p
 	}
+	fmt.Printf("plugboard in:\t%s\n", encoded)
+
+	idx := strings.Index(ABC, encoded)
 
 	// rotors from right to left
 	for i := len(en.rotors) - 1; i >= 0; i-- {
-		encoded = en.rotors[i].GetEncodedLetter(encoded)
+		idx = en.rotors[i].GetEncodedLetterIn(idx)
+		fmt.Printf("rotor[%d] in:\t%d\t%+v\n", i, idx, en.rotors[i].wiring)
 	}
 
 	// reflector
-	encoded = en.reflector.GetEncodedLetter(encoded)
+	idx = en.reflector.GetEncodedLetterOut(idx)
+	fmt.Printf("reflector:\t%d\t%+v\n", idx, en.reflector.wiring)
 
 	// rotors from left to right
 	for i := 0; i < len(en.rotors); i++ {
-		encoded = en.rotors[i].GetEncodedLetter(encoded)
+		idx = en.rotors[i].GetEncodedLetterOut(idx)
+		fmt.Printf("rotor[%d] out:\t%d\t%+v\n", i, idx, en.rotors[i].wiring)
 	}
 
-	// final plugboard
+	// plugboard out
+	encoded = strings.Split(ABC, "")[idx]
 	if p, ok := en.plugboard[encoded]; ok {
 		encoded = p
 	}
-
-	en.rotateRotors()
+	fmt.Printf("plugboard out:\t%s\n\n", encoded)
 
 	return encoded
 }
 
-// rotateRotors looks at the rotor turnover settings
+// rotateRotors determines which rotors to rotate
 func (en *enigma) rotateRotors() {
-	// look at leftmost rotors to see if their neighbors to the right rotate them
-	for i := 0; i < len(en.rotors)-1; i++ {
-		if en.rotors[i+1].ShouldTurnover() {
+	for i := 0; i < len(en.rotors); i++ {
+		switch i {
+		case 0: // leftmost rotor only looks at neighbor to the right
+			if en.rotors[i+1].ShouldTurnover() {
+				en.rotors[i].Rotate()
+			}
+		case len(en.rotors) - 1: // rightmost rotor always turns
 			en.rotors[i].Rotate()
+		default: // middle rotor(s) turn if self or right neighbor are on a notch
+			if en.rotors[i+1].ShouldTurnover() || en.rotors[i].ShouldTurnover() {
+				en.rotors[i].Rotate()
+			}
 		}
 	}
-	// always rotate the rightmost rotor
-	en.rotors[len(en.rotors)-1].Rotate()
+
+	// show rotor settings as letters
+	ps := make([]string, len(en.rotors))
+	for i, r := range en.rotors {
+		ps[i] = string(ABC[r.position])
+	}
+	fmt.Printf("%v\n", ps)
 }
