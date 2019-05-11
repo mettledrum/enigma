@@ -10,13 +10,11 @@ import (
 func main() {
 	c := enigma.Config{
 		Reflector:       "UKW-B",
-		PluboardWirings: []string{},
+		PluboardWirings: []string{"AN"},
 		RotorPositions: []enigma.RotorPosition{
-			{Name: "I", Position: 0},
-			{Name: "II", Position: 0},
-			{Name: "III", Position: 0},
-			// {Name: "II", Position: strings.Index(enigma.ABC, "D")},
-			// {Name: "III", Position: strings.Index(enigma.ABC, "T")}, // TODO make helper for idx instead of ABC const
+			{Walzenlage: "IV", GrundStellung: 0, RingStellung: 3},
+			{Walzenlage: "V", GrundStellung: 0, RingStellung: 0},
+			{Walzenlage: "VI", GrundStellung: 0, RingStellung: 0},
 		},
 	}
 	w := &bytes.Buffer{}

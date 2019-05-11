@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io"
 	"regexp"
-	"strings"
 )
 
 func NewEnigmaM3Encoder(w io.Writer, cfg Config) (*Encoder, error) {
@@ -43,8 +42,9 @@ func newEnigmaM3(cfg Config) (*enigma, error) {
 	// index 0 is the leftmost ring
 	rts := []rotor{}
 	for _, r := range cfg.RotorPositions {
-		rt := rotorsForEnigmaM3()[r.Name]
-		rt.position = r.Position
+		rt := rotorsForEnigmaM3()[r.Walzenlage]
+		rt.grundStellung = r.GrundStellung
+		rt.ringStellung = r.RingStellung
 		rts = append(rts, rt)
 	}
 
@@ -64,8 +64,8 @@ func validateReflectorForEnigmaM3(ref string) error {
 
 func reflectorsForEnigmaM3() map[string]rotor {
 	return map[string]rotor{
-		"UKW-B": rotor{wiring: strings.Split("YRUHQSLDPXNGOKMIEBFZCWVJAT", "")},
-		"UKW-C": rotor{wiring: strings.Split("FVPJIAOYEDRZXWGCTKUQSBNMHL", "")},
+		"UKW-B": rotor{wiring: "YRUHQSLDPXNGOKMIEBFZCWVJAT"},
+		"UKW-C": rotor{wiring: "FVPJIAOYEDRZXWGCTKUQSBNMHL"},
 	}
 }
 
@@ -91,10 +91,10 @@ func validateRotorsForEnigmaM3(rs []RotorPosition) error {
 	}
 
 	for _, r := range rs {
-		if _, ok := rotorsForEnigmaM3()[r.Name]; !ok {
-			return fmt.Errorf("Enigma M3 rotor %s not allowed", r.Name)
+		if _, ok := rotorsForEnigmaM3()[r.Walzenlage]; !ok {
+			return fmt.Errorf("Enigma M3 rotor %s not allowed", r.Walzenlage)
 		}
-		if r.Position < 0 || r.Position > 25 {
+		if r.GrundStellung < 0 || r.GrundStellung > 25 {
 			return errors.New("rotor position must be in range [0,25]")
 		}
 	}
@@ -105,36 +105,36 @@ func validateRotorsForEnigmaM3(rs []RotorPosition) error {
 func rotorsForEnigmaM3() map[string]rotor {
 	return map[string]rotor{
 		"I": rotor{
-			wiring:    strings.Split("EKMFLGDQVZNTOWYHXUSPAIBRCJ", ""),
-			turnovers: map[int]bool{strings.Index(ABC, "Q"): true},
+			wiring:  "EKMFLGDQVZNTOWYHXUSPAIBRCJ",
+			notches: []string{"Q"},
 		},
 		"II": rotor{
-			wiring:    strings.Split("AJDKSIRUXBLHWTMCQGZNPYFVOE", ""),
-			turnovers: map[int]bool{strings.Index(ABC, "E"): true},
+			wiring:  "AJDKSIRUXBLHWTMCQGZNPYFVOE",
+			notches: []string{"E"},
 		},
 		"III": rotor{
-			wiring:    strings.Split("BDFHJLCPRTXVZNYEIWGAKMUSQO", ""),
-			turnovers: map[int]bool{strings.Index(ABC, "V"): true},
+			wiring:  "BDFHJLCPRTXVZNYEIWGAKMUSQO",
+			notches: []string{"V"},
 		},
 		"IV": rotor{
-			wiring:    strings.Split("ESOVPZJAYQUIRHXLNFTGKDCMWB", ""),
-			turnovers: map[int]bool{strings.Index(ABC, "J"): true},
+			wiring:  "ESOVPZJAYQUIRHXLNFTGKDCMWB",
+			notches: []string{"J"},
 		},
 		"V": rotor{
-			wiring:    strings.Split("VZBRGITYUPSDNHLXAWMJQOFECK", ""),
-			turnovers: map[int]bool{strings.Index(ABC, "Z"): true},
+			wiring:  "VZBRGITYUPSDNHLXAWMJQOFECK",
+			notches: []string{"Z"},
 		},
 		"VI": rotor{
-			wiring:    strings.Split("JPGVOUMFYQBENHZRDKASXLICTW", ""),
-			turnovers: map[int]bool{strings.Index(ABC, "Z"): true, strings.Index(ABC, "M"): true},
+			wiring:  "JPGVOUMFYQBENHZRDKASXLICTW",
+			notches: []string{"Z", "M"},
 		},
 		"VII": {
-			wiring:    strings.Split("NZJHGRCXMYSWBOUFAIVLPEKQDT", ""),
-			turnovers: map[int]bool{strings.Index(ABC, "Z"): true, strings.Index(ABC, "M"): true},
+			wiring:  "NZJHGRCXMYSWBOUFAIVLPEKQDT",
+			notches: []string{"Z", "M"},
 		},
 		"VIII": {
-			wiring:    strings.Split("FKQHTLXOCBJSPDZRAMEWNIUYGV", ""),
-			turnovers: map[int]bool{strings.Index(ABC, "Z"): true, strings.Index(ABC, "M"): true},
+			wiring:  "FKQHTLXOCBJSPDZRAMEWNIUYGV",
+			notches: []string{"Z", "M"},
 		},
 	}
 }

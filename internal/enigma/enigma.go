@@ -2,7 +2,6 @@ package enigma
 
 import (
 	"errors"
-	"fmt"
 	"io"
 	"regexp"
 	"strings"
@@ -24,61 +23,76 @@ type enigma struct {
 	rotors    []rotor
 }
 
-// ABC is used for alphabetic indexing
+// ABC is used for alphabetic indexing.
 const ABC = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-// ShouldTurnover indicates if the rotor to the left should rotate
+// ShouldTurnover indicates if the rotor to the left should rotate.
 func (r *rotor) ShouldTurnover() bool {
-	return r.turnovers[r.position]
+	ltr := string(ABC[r.grundStellung])
+	for _, n := range r.notches {
+		if ltr == n {
+			return true
+		}
+	}
+	return false
 }
 
-// Rotate advances the rotor one position
+// Rotate advances the rotor one position.
 func (r *rotor) Rotate() {
-	r.position = (r.position + 1) % 26
+	r.grundStellung = (r.grundStellung + 1) % len(r.wiring)
 }
 
-func (r *rotor) GetEncodedLetterIn(idx int) int {
-	// add position to that index
-	idxWithPosition := (idx + r.position + 26) % 26
-
-	// look it up
-	letterThruWire := r.wiring[idxWithPosition]
-	idxThruWire := strings.Index(ABC, letterThruWire)
-
-	// remove positioning
-	out := (idxThruWire - r.position + 26) % 26
-	return out
+func (r *rotor) unShift(idx int) int {
+	idxWithoutRing := (idx + r.ringStellung + len(r.wiring)) % len(r.wiring)
+	idxWithoutPosition := (idxWithoutRing - r.grundStellung + len(r.wiring)) % len(r.wiring)
+	return idxWithoutPosition
 }
 
-func (r *rotor) GetEncodedLetterOut(idx int) int {
-	// add position to that index
-	idxWithPosition := (idx + r.position + 26) % 26
+func (r *rotor) shift(idx int) int {
+	idxWithPosition := (idx + r.grundStellung + len(r.wiring)) % len(r.wiring)
+	idxWithRing := (idxWithPosition - r.ringStellung + len(r.wiring)) % len(r.wiring)
+	return idxWithRing
+}
 
-	// look it up
-	letterThruWire := strings.Split(ABC, "")[idxWithPosition]
-	idxThruWire := strings.Index(strings.Join(r.wiring, ""), letterThruWire)
+// GetEncodedIdxIn runs the letter through the rotor L<-R.
+func (r *rotor) GetEncodedIdxIn(idx int) int {
+	idx = r.shift(idx)
 
-	// remove position
-	out := (idxThruWire - r.position + 26) % 26
-	return out
+	letterThruWire := r.wiring[idx]
+	idxThruWire := strings.Index(ABC, string(letterThruWire))
+
+	return r.unShift(idxThruWire)
+}
+
+// GetEncodedIdxOut runs the letter through the rotor L->R.
+func (r *rotor) GetEncodedIdxOut(idx int) int {
+	idx = r.shift(idx)
+
+	letterThruWire := strings.Split(ABC, "")[idx]
+	idxThruWire := strings.Index(r.wiring, letterThruWire)
+
+	return r.unShift(idxThruWire)
 }
 
 type rotor struct {
-	position  int
-	turnovers map[int]bool
-	wiring    []string
+	grundStellung int
+	ringStellung  int
+	notches       []string
+	wiring        string
 }
 
+// RotorPosition is used to setup an enigma's rotors
 type RotorPosition struct {
-	Name     string
-	Position int
+	Walzenlage    string // wheel name
+	GrundStellung int    // initial setting
+	RingStellung  int    // setting that rotates
 }
 
 // Config is how any enigma impl. can be setup
 type Config struct {
-	PluboardWirings []string
-	Reflector       string
-	RotorPositions  []RotorPosition
+	PluboardWirings []string        // pairings of letters for the plugboard
+	Reflector       string          // name of reflector
+	RotorPositions  []RotorPosition // rotors and rotation settings
 }
 
 // EncodeString takes a [A-Z]* string and encodes it using the underlying enigma
@@ -100,44 +114,37 @@ func (e *Encoder) EncodeString(userInput string) error {
 // Type encodes the letter passed and rotates the rotors's positions
 // plugboard -> rings -> reflector -> reverse rings -> plugboard
 func (en *enigma) Type(userLetter string) string {
+	out := userLetter
+
 	// rotate before encoding letter
 	en.rotateRotors()
 
-	fmt.Printf("user in:\t%s\n", userLetter)
-	encoded := userLetter
-
 	// plugboard in
-	if p, ok := en.plugboard[encoded]; ok {
-		encoded = p
+	if p, ok := en.plugboard[out]; ok {
+		out = p
 	}
-	fmt.Printf("plugboard in:\t%s\n", encoded)
-
-	idx := strings.Index(ABC, encoded)
+	idx := strings.Index(ABC, out)
 
 	// rotors from right to left
 	for i := len(en.rotors) - 1; i >= 0; i-- {
-		idx = en.rotors[i].GetEncodedLetterIn(idx)
-		fmt.Printf("rotor[%d] in:\t%d\t%+v\n", i, idx, en.rotors[i].wiring)
+		idx = en.rotors[i].GetEncodedIdxIn(idx)
 	}
 
 	// reflector
-	idx = en.reflector.GetEncodedLetterOut(idx)
-	fmt.Printf("reflector:\t%d\t%+v\n", idx, en.reflector.wiring)
+	idx = en.reflector.GetEncodedIdxOut(idx)
 
 	// rotors from left to right
 	for i := 0; i < len(en.rotors); i++ {
-		idx = en.rotors[i].GetEncodedLetterOut(idx)
-		fmt.Printf("rotor[%d] out:\t%d\t%+v\n", i, idx, en.rotors[i].wiring)
+		idx = en.rotors[i].GetEncodedIdxOut(idx)
 	}
 
 	// plugboard out
-	encoded = strings.Split(ABC, "")[idx]
-	if p, ok := en.plugboard[encoded]; ok {
-		encoded = p
+	out = strings.Split(ABC, "")[idx]
+	if p, ok := en.plugboard[out]; ok {
+		out = p
 	}
-	fmt.Printf("plugboard out:\t%s\n\n", encoded)
 
-	return encoded
+	return out
 }
 
 // rotateRotors determines which rotors to rotate
@@ -160,7 +167,6 @@ func (en *enigma) rotateRotors() {
 	// show rotor settings as letters
 	ps := make([]string, len(en.rotors))
 	for i, r := range en.rotors {
-		ps[i] = string(ABC[r.position])
+		ps[i] = string(ABC[r.grundStellung])
 	}
-	fmt.Printf("%v\n", ps)
 }
