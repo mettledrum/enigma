@@ -26,7 +26,7 @@ func newEnigmaM3(cfg Config) (*enigma, error) {
 	if err := validateRotorsForEnigmaM3(cfg.RotorPositions); err != nil {
 		return nil, err
 	}
-	if err := validatePlugboardForEnigmaM3(cfg.PluboardWirings); err != nil {
+	if err := validatePlugboard(cfg.PluboardWirings); err != nil {
 		return nil, err
 	}
 
@@ -69,7 +69,7 @@ func reflectorsForEnigmaM3() map[string]rotor {
 	}
 }
 
-func validatePlugboardForEnigmaM3(pbs []string) error {
+func validatePlugboard(pbs []string) error {
 	// validate plugboard wirings
 	isUppercaseAlphaPair := regexp.MustCompile(`^[A-Z][A-Z]$`).MatchString
 	for _, p := range pbs {

@@ -42,12 +42,15 @@ func (r *rotor) Rotate() {
 	r.grundStellung = (r.grundStellung + 1) % len(r.wiring)
 }
 
+// unShift undoes the ring settings and rotor rotations for passing the index
+// along to the next rotor or reflector.
 func (r *rotor) unShift(idx int) int {
 	idxWithoutRing := (idx + r.ringStellung + len(r.wiring)) % len(r.wiring)
 	idxWithoutPosition := (idxWithoutRing - r.grundStellung + len(r.wiring)) % len(r.wiring)
 	return idxWithoutPosition
 }
 
+// shift accounts for the ring position and rotor rotations.
 func (r *rotor) shift(idx int) int {
 	idxWithPosition := (idx + r.grundStellung + len(r.wiring)) % len(r.wiring)
 	idxWithRing := (idxWithPosition - r.ringStellung + len(r.wiring)) % len(r.wiring)
@@ -111,7 +114,7 @@ func (e *Encoder) EncodeString(userInput string) error {
 	return nil
 }
 
-// Type encodes the letter passed and rotates the rotors's positions
+// Type encodes the letter passed and rotates the rotors's positions.
 // plugboard -> rings -> reflector -> reverse rings -> plugboard
 func (en *enigma) Type(userLetter string) string {
 	out := userLetter
@@ -157,16 +160,11 @@ func (en *enigma) rotateRotors() {
 			}
 		case len(en.rotors) - 1: // rightmost rotor always turns
 			en.rotors[i].Rotate()
-		default: // middle rotor(s) turn if self or right neighbor are on a notch
+		case len(en.rotors) - 2: // middle rotor turns if self or right neighbor are on a notch
 			if en.rotors[i+1].ShouldTurnover() || en.rotors[i].ShouldTurnover() {
 				en.rotors[i].Rotate()
 			}
+		default: // 4th rotor (on M4) doesn't rotate
 		}
-	}
-
-	// show rotor settings as letters
-	ps := make([]string, len(en.rotors))
-	for i, r := range en.rotors {
-		ps[i] = string(ABC[r.grundStellung])
 	}
 }

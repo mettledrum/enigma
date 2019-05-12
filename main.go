@@ -12,9 +12,9 @@ func main() {
 		Reflector:       "UKW-B",
 		PluboardWirings: []string{"AN"},
 		RotorPositions: []enigma.RotorPosition{
-			{Walzenlage: "IV", GrundStellung: 0, RingStellung: 3},
-			{Walzenlage: "V", GrundStellung: 0, RingStellung: 0},
+			{Walzenlage: "III", GrundStellung: 0, RingStellung: 3},
 			{Walzenlage: "VI", GrundStellung: 0, RingStellung: 0},
+			{Walzenlage: "VII", GrundStellung: 0, RingStellung: 0},
 		},
 	}
 	w := &bytes.Buffer{}
