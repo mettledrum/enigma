@@ -26,8 +26,8 @@ type enigma struct {
 // ABC is used for alphabetic indexing.
 const ABC = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
 
-// ShouldTurnover indicates if the rotor to the left should rotate.
-func (r *rotor) ShouldTurnover() bool {
+// shouldTurnover indicates if the rotor to the left should rotate.
+func (r *rotor) shouldTurnover() bool {
 	ltr := string(ABC[r.grundStellung])
 	for _, n := range r.notches {
 		if ltr == n {
@@ -37,8 +37,8 @@ func (r *rotor) ShouldTurnover() bool {
 	return false
 }
 
-// Rotate advances the rotor one position.
-func (r *rotor) Rotate() {
+// rotate advances the rotor one position.
+func (r *rotor) rotate() {
 	r.grundStellung = (r.grundStellung + 1) % len(r.wiring)
 }
 
@@ -57,8 +57,8 @@ func (r *rotor) shift(idx int) int {
 	return idxWithRing
 }
 
-// GetEncodedIdxIn runs the letter through the rotor L<-R.
-func (r *rotor) GetEncodedIdxIn(idx int) int {
+// getEncodedIdxIn runs the letter through the rotor L<-R.
+func (r *rotor) getEncodedIdxIn(idx int) int {
 	idx = r.shift(idx)
 
 	letterThruWire := r.wiring[idx]
@@ -67,8 +67,8 @@ func (r *rotor) GetEncodedIdxIn(idx int) int {
 	return r.unShift(idxThruWire)
 }
 
-// GetEncodedIdxOut runs the letter through the rotor L->R.
-func (r *rotor) GetEncodedIdxOut(idx int) int {
+// getEncodedIdxOut runs the letter through the rotor L->R.
+func (r *rotor) getEncodedIdxOut(idx int) int {
 	idx = r.shift(idx)
 
 	letterThruWire := strings.Split(ABC, "")[idx]
@@ -106,7 +106,7 @@ func (e *Encoder) EncodeString(userInput string) error {
 	}
 
 	for _, letter := range userInput {
-		encoded := e.eng.Type(string(letter))
+		encoded := e.eng.typeLetter(string(letter))
 		if _, err := e.w.Write([]byte(encoded)); err != nil {
 			return err
 		}
@@ -114,9 +114,9 @@ func (e *Encoder) EncodeString(userInput string) error {
 	return nil
 }
 
-// Type encodes the letter passed and rotates the rotors's positions.
+// typeLetter encodes the letter passed and rotates the rotors's positions.
 // plugboard -> rings -> reflector -> reverse rings -> plugboard
-func (en *enigma) Type(userLetter string) string {
+func (en *enigma) typeLetter(userLetter string) string {
 	out := userLetter
 
 	// rotate before encoding letter
@@ -130,15 +130,15 @@ func (en *enigma) Type(userLetter string) string {
 
 	// rotors from right to left
 	for i := len(en.rotors) - 1; i >= 0; i-- {
-		idx = en.rotors[i].GetEncodedIdxIn(idx)
+		idx = en.rotors[i].getEncodedIdxIn(idx)
 	}
 
 	// reflector
-	idx = en.reflector.GetEncodedIdxOut(idx)
+	idx = en.reflector.getEncodedIdxOut(idx)
 
 	// rotors from left to right
 	for i := 0; i < len(en.rotors); i++ {
-		idx = en.rotors[i].GetEncodedIdxOut(idx)
+		idx = en.rotors[i].getEncodedIdxOut(idx)
 	}
 
 	// plugboard out
@@ -155,14 +155,14 @@ func (en *enigma) rotateRotors() {
 	for i := 0; i < len(en.rotors); i++ {
 		switch i {
 		case 0: // leftmost rotor only looks at neighbor to the right
-			if en.rotors[i+1].ShouldTurnover() {
-				en.rotors[i].Rotate()
+			if en.rotors[i+1].shouldTurnover() {
+				en.rotors[i].rotate()
 			}
 		case len(en.rotors) - 1: // rightmost rotor always turns
-			en.rotors[i].Rotate()
+			en.rotors[i].rotate()
 		case len(en.rotors) - 2: // middle rotor turns if self or right neighbor are on a notch
-			if en.rotors[i+1].ShouldTurnover() || en.rotors[i].ShouldTurnover() {
-				en.rotors[i].Rotate()
+			if en.rotors[i+1].shouldTurnover() || en.rotors[i].shouldTurnover() {
+				en.rotors[i].rotate()
 			}
 		default: // 4th rotor (on M4) doesn't rotate
 		}
