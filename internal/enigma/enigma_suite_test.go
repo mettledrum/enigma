@@ -3,6 +3,7 @@ package enigma_test
 import (
 	"bytes"
 	"enigma/internal/enigma"
+	"io/ioutil"
 	"testing"
 
 	. "github.com/onsi/ginkgo"
@@ -29,19 +30,33 @@ var _ = Describe("enigma", func() {
 				Reflector:       "UKW-B",
 				PluboardWirings: []string{"AN", "QT"},
 				RotorPositions: []enigma.RotorPosition{
-					{Walzenlage: "IV", GrundStellung: 0, RingStellung: 3},
-					{Walzenlage: "V", GrundStellung: 0, RingStellung: 7},
-					{Walzenlage: "VI", GrundStellung: 0, RingStellung: 0},
+					{Walzenlage: "IV", GrundStellung: 8, RingStellung: 3},
+					{Walzenlage: "V", GrundStellung: 7, RingStellung: 7},
+					{Walzenlage: "VI", GrundStellung: 20, RingStellung: 0},
 				},
 			}
 		})
 
 		Context("#NewEnigmaM3Encoder", func() {
 
+			Context("valid config", func() {
+
+				It("creates encoder", func() {
+					_, err := enigma.NewEnigmaM3Encoder(w, validM3Cfg)
+					Expect(err).To(BeNil())
+				})
+			})
+
 			Context("invalid config", func() {
 
-				It("can't repeat plugboard letters", func() {
+				It("can't repeat plugboard letters in different pairs", func() {
 					validM3Cfg.PluboardWirings = []string{"AN", "NM"}
+					_, err := enigma.NewEnigmaM3Encoder(w, validM3Cfg)
+					Expect(err).NotTo(BeNil())
+				})
+
+				It("can't repeat plugboard letters in pair", func() {
+					validM3Cfg.PluboardWirings = []string{"AA"}
 					_, err := enigma.NewEnigmaM3Encoder(w, validM3Cfg)
 					Expect(err).NotTo(BeNil())
 				})
@@ -132,6 +147,47 @@ var _ = Describe("enigma", func() {
 					_, err := enigma.NewEnigmaM3Encoder(w, validM3Cfg)
 					Expect(err).NotTo(BeNil())
 				})
+			})
+		})
+
+		Context("#Encode", func() {
+
+			It("encodes messages [1]", func() {
+				c := enigma.Config{
+					Reflector:       "UKW-C",
+					PluboardWirings: []string{"AC", "XY"},
+					RotorPositions: []enigma.RotorPosition{
+						{Walzenlage: "I", GrundStellung: 0, RingStellung: 0},
+						{Walzenlage: "II", GrundStellung: 0, RingStellung: 0},
+						{Walzenlage: "III", GrundStellung: 0, RingStellung: 0},
+					},
+				}
+				e, err := enigma.NewEnigmaM3Encoder(w, c)
+				Expect(err).To(BeNil())
+
+				Expect(e.EncodeString("ABCDEFGH")).To(BeNil())
+				b, err := ioutil.ReadAll(w)
+				Expect(err).To(BeNil())
+				Expect(string(b)).To(Equal("BYBVVLXJ"))
+			})
+
+			It("encodes messages [2]", func() {
+				c := enigma.Config{
+					Reflector:       "UKW-B",
+					PluboardWirings: []string{"AC", "XY", "BT"},
+					RotorPositions: []enigma.RotorPosition{
+						{Walzenlage: "II", GrundStellung: 4, RingStellung: 2},
+						{Walzenlage: "IV", GrundStellung: 0, RingStellung: 25},
+						{Walzenlage: "VI", GrundStellung: 11, RingStellung: 1},
+					},
+				}
+				e, err := enigma.NewEnigmaM3Encoder(w, c)
+				Expect(err).To(BeNil())
+
+				Expect(e.EncodeString("QWERTYQWERTYQWERTYQWERTYQWERTYQWERTYQWERTYQWERTY")).To(BeNil())
+				b, err := ioutil.ReadAll(w)
+				Expect(err).To(BeNil())
+				Expect(string(b)).To(Equal("VYNPLKEQMZHAGLIUSPXZDCZMDOAJOULIIUXRKQKNXBVICIZK"))
 			})
 		})
 	})

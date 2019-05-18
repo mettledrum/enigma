@@ -1,12 +1,14 @@
 package enigma
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"regexp"
+
+	"github.com/pkg/errors"
 )
 
+// NewEnigmaM3Encoder returns a new encoder.
 func NewEnigmaM3Encoder(w io.Writer, cfg Config) (*Encoder, error) {
 	e, err := newEnigmaM3(cfg)
 	if err != nil {
@@ -69,20 +71,36 @@ func reflectorsForEnigmaM3() map[string]rotor {
 	}
 }
 
-func validatePlugboard(pbs []string) error {
-	// validate plugboard wirings
-	isUppercaseAlphaPair := regexp.MustCompile(`^[A-Z][A-Z]$`).MatchString
-	for _, p := range pbs {
-		if !isUppercaseAlphaPair(p) || p[0] == p[1] {
-			return fmt.Errorf("plugboard pair %s is invalid", p)
-		}
-		// TODO: also have to make sure that a plug isn't attempted more than once
-		// ie Q cannot be plugged into A and also into B
+func checkReuse(k string, m map[string]bool) error {
+	if m[k] {
+		return fmt.Errorf("may not reuse %s", k)
 	}
+	m[k] = true
 	return nil
 }
 
-// TODO: cannot reuse a rotor
+func validatePlugboard(pbs []string) error {
+	lettersUsed := map[string]bool{}
+	isUppercaseAlphaPair := regexp.MustCompile(`^[A-Z][A-Z]$`).MatchString
+
+	for _, p := range pbs {
+		if !isUppercaseAlphaPair(p) {
+			return fmt.Errorf("plugboard pair %s must be two capitalized, differing letters", p)
+		}
+		firstLetter := string(p[0])
+		secLetter := string(p[1])
+
+		if err := checkReuse(firstLetter, lettersUsed); err != nil {
+			return errors.Wrap(err, "plugboard letters must be unique")
+		}
+		if err := checkReuse(secLetter, lettersUsed); err != nil {
+			return errors.Wrap(err, "plugboard letters must be unique")
+		}
+	}
+
+	return nil
+}
+
 func validateRotorsForEnigmaM3(rs []RotorPosition) error {
 	const numberOfRotors = 3
 
@@ -90,12 +108,20 @@ func validateRotorsForEnigmaM3(rs []RotorPosition) error {
 		return fmt.Errorf("Enigma M3 has %d rotors", numberOfRotors)
 	}
 
+	rotorsUsed := map[string]bool{}
 	for _, r := range rs {
 		if _, ok := rotorsForEnigmaM3()[r.Walzenlage]; !ok {
 			return fmt.Errorf("Enigma M3 rotor %s not allowed", r.Walzenlage)
 		}
 		if r.GrundStellung < 0 || r.GrundStellung > 25 {
-			return errors.New("rotor position must be in range [0,25]")
+			return errors.New("rotor grundstellung must be in range [0,25]")
+		}
+		if r.RingStellung < 0 || r.RingStellung > 25 {
+			return errors.New("rotor ringstellung must be in range [0,25]")
+		}
+
+		if err := checkReuse(r.Walzenlage, rotorsUsed); err != nil {
+			return errors.Wrap(err, "rotors must be different")
 		}
 	}
 
