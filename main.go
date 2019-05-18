@@ -2,9 +2,10 @@ package main
 
 import (
 	"bytes"
-	"enigma/internal/enigma"
 	"fmt"
 	"io/ioutil"
+
+	"github.com/mettledrum/enigma/internal/enigma"
 )
 
 func main() {

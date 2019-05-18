@@ -2,10 +2,10 @@ package enigma_test
 
 import (
 	"bytes"
-	"enigma/internal/enigma"
 	"io/ioutil"
 	"testing"
 
+	"github.com/mettledrum/enigma/internal/enigma"
 	. "github.com/onsi/ginkgo"
 	. "github.com/onsi/gomega"
 )
